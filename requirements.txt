@@ -1,0 +1,12 @@
+numpy
+pandas
+scipy
+matplotlib
+opencv-python
+mediapipe
+networkx
+scikit-learn
+pyyaml
+tqdm
+joblib
+streamlit

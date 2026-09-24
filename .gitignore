@@ -1,0 +1,47 @@
+# Python virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.*
+*.key
+
+# Raw datasets
+data/raw/*
+!data/raw/real/
+!data/raw/fake/
+
+# Processed datasets
+data/processed/*
+data/features/*
+
+# Trained model files
+models/*.pkl
+models/*.joblib
+models/*.pt
+models/*.pth
+
+# Generated experiment outputs
+outputs/figures/*
+outputs/reports/*
+outputs/experiments/*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log

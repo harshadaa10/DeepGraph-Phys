@@ -1,0 +1,47 @@
+project:
+  name: "DeepGraph-Phys"
+  version: "0.1.0"
+  random_seed: 42
+
+video:
+  target_fps: 30
+  max_duration_seconds: 10
+  resize_width: 640
+  resize_height: 480
+
+face:
+  detection_confidence: 0.5
+  tracking_confidence: 0.5
+
+regions:
+  - forehead
+  - left_cheek
+  - right_cheek
+  - left_eye
+  - right_eye
+  - nose
+  - mouth
+
+rppg:
+  method: "POS"
+  low_frequency: 0.7
+  high_frequency: 4.0
+  window_seconds: 5
+
+motion:
+  method: "landmarks"
+
+graph:
+  type: "anatomical"
+  normalized_laplacian: false
+
+model:
+  primary: "isolation_forest"
+  contamination: 0.1
+
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  features: "data/features"
+  models: "models"
+  outputs: "outputs"
