@@ -45,3 +45,7 @@ outputs/experiments/*
 
 # Logs
 *.log
+
+# MediaPipe model assets
+models/mediapipe/*.task
+models/mediapipe/*.tflite
