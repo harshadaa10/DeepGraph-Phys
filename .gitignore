@@ -24,10 +24,12 @@ Thumbs.db
 data/raw/*
 !data/raw/real/
 !data/raw/fake/
+data/datasets/
 
 # Processed datasets
 data/processed/*
 data/features/*
+
 
 # Trained model files
 models/*.pkl

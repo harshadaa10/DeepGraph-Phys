@@ -1,17 +1,19 @@
 from pathlib import Path
 import sys
 
+import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
-# --------------------------------------------------
-# Project setup
-# --------------------------------------------------
+PROJECT_ROOT = Path(
+    __file__
+).resolve().parents[1]
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.append(str(PROJECT_ROOT))
+sys.path.append(
+    str(PROJECT_ROOT)
+)
 
 
 from src.physiology.rppg_pipeline import (
@@ -19,202 +21,388 @@ from src.physiology.rppg_pipeline import (
 )
 
 
-# --------------------------------------------------
-# File paths
-# --------------------------------------------------
-
-INPUT_PATH = (
+RGB_PATH = (
     PROJECT_ROOT
     / "data"
     / "features"
-    / "sample_real_rgb.csv"
+    / "sample_fake_rgb.csv"
+)
+
+VIDEO_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "datasets"
+    / "FaceForensics++"
+    / "manipulated_sequences"
+    / "Deepfakes"
+    / "c23"
+    / "videos"
+    / "033_097.mp4"
 )
 
 OUTPUT_CSV = (
     PROJECT_ROOT
     / "data"
     / "features"
-    / "sample_real_rppg.csv"
+    / "sample_fake_rppg.csv"
 )
 
 OUTPUT_PLOT = (
     PROJECT_ROOT
     / "outputs"
     / "figures"
-    / "real_pos_rppg.png"
+    / "fake_pos_rppg.png"
 )
 
 
-# --------------------------------------------------
-# Helper function
-# --------------------------------------------------
+RPPG_COLUMNS = [
+    "forehead_rppg",
+    "left_cheek_rppg",
+    "right_cheek_rppg",
+]
 
-def estimate_fps(dataframe):
-    """
-    Estimate FPS from the time_seconds column.
-    """
-
-    time = dataframe[
-        "time_seconds"
-    ].values
-
-    if len(time) < 2:
-        raise ValueError(
-            "At least two time samples are required "
-            "to estimate FPS."
-        )
-
-    intervals = (
-        time[1:]
-        - time[:-1]
-    )
-
-    mean_interval = intervals.mean()
-
-    if mean_interval <= 0:
-        raise ValueError(
-            "Invalid time values."
-        )
-
-    return 1.0 / mean_interval
-
-
-# --------------------------------------------------
-# Main
-# --------------------------------------------------
 
 def main():
 
     print(
-        "\nDeepGraph-Phys — POS rPPG Test"
+        "\nDeepGraph-Phys — "
+        "Segment-Aware Fake POS rPPG Test"
     )
 
-    print("-" * 50)
+    print("-" * 65)
 
-    # ----------------------------------------------
-    # Load RGB signal data
-    # ----------------------------------------------
+    # ==========================================
+    # Load RGB
+    # ==========================================
 
-    dataframe = pd.read_csv(
-        INPUT_PATH
+    if not RGB_PATH.exists():
+        raise FileNotFoundError(
+            f"RGB CSV not found: {RGB_PATH}"
+        )
+
+    rgb_dataframe = pd.read_csv(
+        RGB_PATH
     )
 
     print(
         "RGB data loaded:",
-        dataframe.shape
+        rgb_dataframe.shape
     )
 
-    # ----------------------------------------------
-    # Estimate FPS
-    # ----------------------------------------------
+    # ==========================================
+    # Read true source FPS
+    # ==========================================
 
-    fps = estimate_fps(
-        dataframe
+    cap = cv2.VideoCapture(
+        str(VIDEO_PATH)
+    )
+
+    if not cap.isOpened():
+        raise ValueError(
+            f"Could not open video: "
+            f"{VIDEO_PATH}"
+        )
+
+    fps = float(
+        cap.get(
+            cv2.CAP_PROP_FPS
+        )
+    )
+
+    total_video_frames = int(
+        cap.get(
+            cv2.CAP_PROP_FRAME_COUNT
+        )
+    )
+
+    cap.release()
+
+    print(
+        f"Source video FPS: "
+        f"{fps:.2f}"
     )
 
     print(
-        f"Estimated FPS: {fps:.2f}"
+        "Source video frames:",
+        total_video_frames
     )
 
-    # ----------------------------------------------
-    # Generate POS rPPG signals
-    # ----------------------------------------------
+    # ==========================================
+    # Generate segment-aware rPPG
+    # ==========================================
 
     print(
-        "Generating POS rPPG signals..."
+        "\nGenerating segment-aware "
+        "POS rPPG signals..."
     )
 
     rppg_dataframe = (
         generate_rppg_dataframe(
-            dataframe,
-            fps
+            rgb_dataframe,
+            fps=fps,
+            max_gap_frames=6,
+            window_seconds=1.6,
         )
     )
 
     print(
-        "rPPG table shape:",
+        "\nrPPG table shape:",
         rppg_dataframe.shape
     )
 
-    # ----------------------------------------------
-    # Display columns
-    # ----------------------------------------------
+    print(
+        "\nColumns:"
+    )
 
-    print("\nColumns:")
+    for column in (
+        rppg_dataframe.columns
+    ):
 
-    for column in rppg_dataframe.columns:
         print(
             " -",
             column
         )
 
-    # ----------------------------------------------
-    # Signal statistics
-    # ----------------------------------------------
+    # ==========================================
+    # Segment information
+    # ==========================================
 
-    regions = [
-        "forehead",
-        "left_cheek",
-        "right_cheek",
-    ]
-
-    print(
-        "\nSignal statistics:"
+    segment_counts = (
+        rppg_dataframe[
+            "segment_id"
+        ]
+        .value_counts()
+        .sort_index()
     )
 
-    for region in regions:
+    print(
+        "\nValid POS segments:",
+        len(segment_counts)
+    )
 
-        signal = rppg_dataframe[
-            f"{region}_rppg"
-        ]
+    print(
+        "\nSegment lengths:"
+    )
 
-        print(
-            f"{region:12s} "
-            f"mean={signal.mean():.4f} "
-            f"std={signal.std():.4f}"
+    for (
+        segment_id,
+        count,
+    ) in segment_counts.items():
+
+        segment_rows = (
+            rppg_dataframe[
+                rppg_dataframe[
+                    "segment_id"
+                ]
+                == segment_id
+            ]
         )
 
-    # ----------------------------------------------
-    # Cross-region correlation
-    # ----------------------------------------------
+        first_frame = int(
+            segment_rows[
+                "frame"
+            ].iloc[0]
+        )
 
-    print(
-        "\nCross-region rPPG correlation:"
-    )
+        last_frame = int(
+            segment_rows[
+                "frame"
+            ].iloc[-1]
+        )
 
-    signals = [
+        print(
+            f"Segment {segment_id}: "
+            f"{count} samples | "
+            f"frames "
+            f"{first_frame}–"
+            f"{last_frame}"
+        )
+
+    # ==========================================
+    # Interpolation information
+    # ==========================================
+
+    interpolated_frames = int(
         rppg_dataframe[
-            f"{region}_rppg"
-        ].values
-        for region in regions
-    ]
-
-    correlation_matrix = np.corrcoef(
-        signals
+            "interpolated"
+        ].sum()
     )
 
-    correlation_dataframe = pd.DataFrame(
-        correlation_matrix,
-        index=regions,
-        columns=regions
+    interpolation_rate = (
+        interpolated_frames
+        / len(rppg_dataframe)
+        if len(rppg_dataframe) > 0
+        else 0.0
     )
 
     print(
-        correlation_dataframe.round(3)
+        "\nInterpolated rPPG frames:",
+        interpolated_frames
     )
 
-    # ----------------------------------------------
-    # Save rPPG CSV
-    # ----------------------------------------------
+    print(
+        f"Interpolation rate: "
+        f"{interpolation_rate * 100:.2f}%"
+    )
+
+    # ==========================================
+    # rPPG statistics
+    # ==========================================
+
+    print(
+        "\nrPPG statistics:"
+    )
+
+    for column in (
+        RPPG_COLUMNS
+    ):
+
+        print(
+            f"{column:22s} "
+            f"mean="
+            f"{rppg_dataframe[column].mean():.6f} "
+            f"std="
+            f"{rppg_dataframe[column].std():.6f}"
+        )
+
+    print(
+        "\nCross-region correlation:"
+    )
+
+    print(
+        rppg_dataframe[
+            RPPG_COLUMNS
+        ].corr().to_string()
+    )
+
+    # ==========================================
+    # Validation
+    # ==========================================
+
+    fps_valid = (
+        np.isfinite(fps)
+        and fps > 0
+    )
+
+    samples_available = (
+        len(rppg_dataframe) > 0
+    )
+
+    multiple_segments_available = (
+        len(segment_counts) >= 1
+    )
+
+    segment_lengths_valid = (
+        segment_counts >=
+        int(
+            round(
+                1.6 * fps
+            )
+        )
+    ).all()
+
+    frames_unique = (
+        rppg_dataframe[
+            "frame"
+        ].is_unique
+    )
+
+    frames_monotonic = (
+        rppg_dataframe[
+            "frame"
+        ].is_monotonic_increasing
+    )
+
+    all_rppg_finite = (
+        np.isfinite(
+            rppg_dataframe[
+                RPPG_COLUMNS
+            ].values
+        ).all()
+    )
+
+    segment_ids_valid = (
+        rppg_dataframe[
+            "segment_id"
+        ]
+        .notna()
+        .all()
+    )
+
+    print(
+        "\nValidation checks:"
+    )
+
+    print(
+        "Source FPS valid:",
+        fps_valid
+    )
+
+    print(
+        "rPPG samples available:",
+        samples_available
+    )
+
+    print(
+        "Valid POS segments available:",
+        multiple_segments_available
+    )
+
+    print(
+        "Every segment >= POS window:",
+        segment_lengths_valid
+    )
+
+    print(
+        "Frame IDs unique:",
+        frames_unique
+    )
+
+    print(
+        "Frame IDs increasing:",
+        frames_monotonic
+    )
+
+    print(
+        "All rPPG finite:",
+        all_rppg_finite
+    )
+
+    print(
+        "Segment IDs valid:",
+        segment_ids_valid
+    )
+
+    all_checks_passed = all(
+        [
+            fps_valid,
+            samples_available,
+            multiple_segments_available,
+            segment_lengths_valid,
+            frames_unique,
+            frames_monotonic,
+            all_rppg_finite,
+            segment_ids_valid,
+        ]
+    )
+
+    print(
+        "\nAll validation checks passed:",
+        all_checks_passed
+    )
+
+    # ==========================================
+    # Save CSV
+    # ==========================================
 
     OUTPUT_CSV.parent.mkdir(
         parents=True,
-        exist_ok=True
+        exist_ok=True,
     )
 
     rppg_dataframe.to_csv(
         OUTPUT_CSV,
-        index=False
+        index=False,
     )
 
     print(
@@ -225,26 +413,27 @@ def main():
         OUTPUT_CSV
     )
 
-    # ----------------------------------------------
-    # Plot regional rPPG signals
-    # ----------------------------------------------
-
-    time = rppg_dataframe[
-        "time_seconds"
-    ]
+    # ==========================================
+    # Plot
+    # ==========================================
 
     plt.figure(
         figsize=(12, 6)
     )
 
-    for region in regions:
+    for column in (
+        RPPG_COLUMNS
+    ):
 
         plt.plot(
-            time,
             rppg_dataframe[
-                f"{region}_rppg"
+                "time_seconds"
             ],
-            label=region
+            rppg_dataframe[
+                column
+            ],
+            label=column,
+            alpha=0.8,
         )
 
     plt.xlabel(
@@ -252,11 +441,12 @@ def main():
     )
 
     plt.ylabel(
-        "Normalized rPPG amplitude"
+        "Normalized POS rPPG"
     )
 
     plt.title(
-        "POS rPPG Signals Across Facial Regions"
+        "FF++ Deepfake "
+        "Segment-Aware POS rPPG"
     )
 
     plt.legend()
@@ -267,18 +457,14 @@ def main():
 
     plt.tight_layout()
 
-    # ----------------------------------------------
-    # Save plot
-    # ----------------------------------------------
-
     OUTPUT_PLOT.parent.mkdir(
         parents=True,
-        exist_ok=True
+        exist_ok=True,
     )
 
     plt.savefig(
         OUTPUT_PLOT,
-        dpi=150
+        dpi=150,
     )
 
     plt.close()
@@ -292,7 +478,8 @@ def main():
     )
 
     print(
-        "\nPOS rPPG extraction completed successfully."
+        "\nSegment-aware POS rPPG "
+        "test completed."
     )
 
 

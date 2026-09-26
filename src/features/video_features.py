@@ -21,7 +21,7 @@ from src.features.gsp_features import (
 
 from src.features.physiology_features import (
     build_physiology_matrix,
-    physiology_correlation_matrix,
+    segment_aware_physiology_correlation,
     mean_pairwise_correlation,
     mean_absolute_pairwise_correlation,
 )
@@ -127,10 +127,15 @@ def extract_video_features(
     # ------------------------------------------
 
     motion_temporal = (
-        temporal_graph_variation(
-            motion
-        )
+    temporal_graph_variation(
+        motion,
+        frame_ids=(
+            synchronized[
+                "frame"
+            ].values
+        ),
     )
+)
 
     add_summary(
         features,
@@ -226,11 +231,12 @@ def extract_video_features(
     # Physiology correlation
     # ------------------------------------------
 
-    correlation = (
-        physiology_correlation_matrix(
-            physiology
-        )
-    )
+    (
+    correlation,
+    correlation_segment_details,
+) = segment_aware_physiology_correlation(
+    synchronized
+)
 
     features[
         "physiology_mean_correlation"
@@ -286,10 +292,15 @@ def extract_video_features(
     # ------------------------------------------
 
     physiology_temporal = (
-        temporal_graph_variation(
-            physiology
-        )
+    temporal_graph_variation(
+        physiology,
+        frame_ids=(
+            synchronized[
+                "frame"
+            ].values
+        ),
     )
+)
 
     add_summary(
         features,

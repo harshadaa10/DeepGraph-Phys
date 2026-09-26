@@ -3,8 +3,13 @@ from pathlib import Path
 import cv2
 import pandas as pd
 
-from src.preprocessing.face_landmarker import FaceLandmarkDetector
-from src.preprocessing.face_regions import get_all_region_polygons
+from src.preprocessing.robust_face_landmarker import (
+    RobustFaceLandmarkDetector,
+)
+
+from src.preprocessing.face_regions import (
+    get_all_region_polygons,
+)
 
 from src.physiology.rgb_extractor import (
     RPPG_REGIONS,
@@ -15,26 +20,59 @@ from src.physiology.rgb_extractor import (
 def extract_video_rgb_signals(
     video_path,
     model_path,
-    max_frames=None
+    max_frames=None,
 ):
     """
-    Extract temporal RGB signals from selected facial regions
-    across an entire video.
+    Extract temporal RGB signals from selected facial
+    regions across a video.
+
+    Returns
+    -------
+    dataframe : pandas.DataFrame
+        RGB values for face-detected frames.
+
+    metadata : dict
+        Video and face-detection quality information.
     """
 
-    video_path = Path(video_path)
+    video_path = Path(
+        video_path
+    )
 
-    cap = cv2.VideoCapture(str(video_path))
+    # ==========================================
+    # 1. Open video
+    # ==========================================
+
+    cap = cv2.VideoCapture(
+        str(video_path)
+    )
 
     if not cap.isOpened():
         raise ValueError(
             f"Could not open video: {video_path}"
         )
 
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    fps = float(
+        cap.get(
+            cv2.CAP_PROP_FPS
+        )
+    )
 
-    detector = FaceLandmarkDetector(
-        model_path
+    if fps <= 0:
+        cap.release()
+
+        raise ValueError(
+            f"Invalid FPS for video: {video_path}"
+        )
+
+    # ==========================================
+    # 2. Create robust face detector
+    # ==========================================
+
+    detector = (
+        RobustFaceLandmarkDetector(
+            model_path
+        )
     )
 
     records = []
@@ -42,75 +80,137 @@ def extract_video_rgb_signals(
     frame_index = 0
     detected_frames = 0
 
-    while True:
+    # ==========================================
+    # 3. Process video frames
+    # ==========================================
 
-        success, frame = cap.read()
+    try:
 
-        if not success:
-            break
+        while True:
 
-        if max_frames is not None:
-            if frame_index >= max_frames:
+            # Stop before reading an extra frame
+            # when a frame limit is requested.
+            if (
+                max_frames is not None
+                and frame_index >= max_frames
+            ):
                 break
 
-        landmarks = detector.detect(frame)
-
-        if landmarks is not None:
-
-            regions = get_all_region_polygons(
-                landmarks,
-                frame.shape
+            success, frame = (
+                cap.read()
             )
 
-            rgb_values = extract_region_rgb(
-                frame,
-                regions
+            if not success:
+                break
+
+            landmarks = (
+                detector.detect(
+                    frame
+                )
             )
 
-            record = {
-                "frame": frame_index,
-                "time_seconds": (
-                    frame_index / fps
-                    if fps > 0
-                    else 0
-                ),
-            }
+            if landmarks is not None:
 
-            for region_name in RPPG_REGIONS:
+                regions = (
+                    get_all_region_polygons(
+                        landmarks,
+                        frame.shape,
+                    )
+                )
 
-                if region_name in rgb_values:
+                rgb_values = (
+                    extract_region_rgb(
+                        frame,
+                        regions,
+                    )
+                )
 
-                    r, g, b = rgb_values[
+                record = {
+                    "frame":
+                        frame_index,
+
+                    "time_seconds":
+                        frame_index / fps,
+                }
+
+                for region_name in (
+                    RPPG_REGIONS
+                ):
+
+                    if (
                         region_name
-                    ]
+                        in rgb_values
+                    ):
 
-                    record[
-                        f"{region_name}_R"
-                    ] = r
+                        r, g, b = (
+                            rgb_values[
+                                region_name
+                            ]
+                        )
 
-                    record[
-                        f"{region_name}_G"
-                    ] = g
+                        record[
+                            f"{region_name}_R"
+                        ] = r
 
-                    record[
-                        f"{region_name}_B"
-                    ] = b
+                        record[
+                            f"{region_name}_G"
+                        ] = g
 
-            records.append(record)
+                        record[
+                            f"{region_name}_B"
+                        ] = b
 
-            detected_frames += 1
+                records.append(
+                    record
+                )
 
-        frame_index += 1
+                detected_frames += 1
 
-    cap.release()
-    detector.close()
+            frame_index += 1
 
-    dataframe = pd.DataFrame(records)
+    finally:
+
+        cap.release()
+        detector.close()
+
+    # ==========================================
+    # 4. Build dataframe
+    # ==========================================
+
+    dataframe = pd.DataFrame(
+        records
+    )
+
+    # ==========================================
+    # 5. Quality-control metadata
+    # ==========================================
+
+    if frame_index > 0:
+
+        face_detection_rate = (
+            detected_frames
+            / frame_index
+        )
+
+    else:
+
+        face_detection_rate = 0.0
 
     metadata = {
-        "fps": fps,
-        "total_frames_processed": frame_index,
-        "frames_with_face": detected_frames,
+        "fps":
+            fps,
+
+        "frames_processed":
+            frame_index,
+
+        "frames_with_face":
+            detected_frames,
+
+        "face_detection_rate":
+            face_detection_rate,
     }
 
-    return dataframe, metadata
+    return (
+        dataframe,
+        metadata,
+    )

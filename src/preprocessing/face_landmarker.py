@@ -82,3 +82,93 @@ def draw_landmarks(frame, landmarks):
             )
 
     return output
+
+def map_landmarks_to_frame(
+    landmarks,
+    crop_coordinates,
+    frame_shape,
+):
+    """
+    Convert MediaPipe landmarks detected inside a crop
+    into normalized coordinates of the original frame.
+
+    Parameters
+    ----------
+    landmarks:
+        MediaPipe normalized landmarks relative to crop.
+
+    crop_coordinates:
+        Tuple (x1, y1, x2, y2) describing where the
+        crop came from in the original frame.
+
+    frame_shape:
+        Original OpenCV frame shape.
+
+    Returns
+    -------
+    list
+        Landmark-like objects containing x, y, z
+        normalized relative to the original frame.
+    """
+
+    x1, y1, x2, y2 = crop_coordinates
+
+    frame_height, frame_width = frame_shape[:2]
+
+    crop_width = x2 - x1
+    crop_height = y2 - y1
+
+    mapped_landmarks = []
+
+    for landmark in landmarks:
+
+        crop_x_pixels = (
+            landmark.x * crop_width
+        )
+
+        crop_y_pixels = (
+            landmark.y * crop_height
+        )
+
+        frame_x_pixels = (
+            x1 + crop_x_pixels
+        )
+
+        frame_y_pixels = (
+            y1 + crop_y_pixels
+        )
+
+        frame_x = (
+            frame_x_pixels / frame_width
+        )
+
+        frame_y = (
+            frame_y_pixels / frame_height
+        )
+
+        mapped_landmarks.append(
+            MappedLandmark(
+                x=frame_x,
+                y=frame_y,
+                z=landmark.z,
+            )
+        )
+
+    return mapped_landmarks
+
+
+class MappedLandmark:
+    """
+    Minimal landmark representation compatible
+    with the rest of the DeepGraph-Phys pipeline.
+    """
+
+    def __init__(
+        self,
+        x,
+        y,
+        z=0.0,
+    ):
+        self.x = float(x)
+        self.y = float(y)
+        self.z = float(z)

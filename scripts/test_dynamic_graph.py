@@ -69,6 +69,23 @@ def main():
     )
 
     # ------------------------------------------
+    # Determine expected synchronized frames
+    # ------------------------------------------
+
+    expected_frames = np.intersect1d(
+        rppg_dataframe[
+            "frame"
+        ].values,
+        motion_dataframe[
+            "frame"
+        ].values,
+    )
+
+    expected_samples = len(
+        expected_frames
+    )
+
+    # ------------------------------------------
     # Create dynamic graph data
     # ------------------------------------------
 
@@ -81,6 +98,10 @@ def main():
 
     graph = dynamic_data[
         "graph"
+    ]
+
+    synchronized = dynamic_data[
+        "dataframe"
     ]
 
     physiology = dynamic_data[
@@ -111,6 +132,12 @@ def main():
         "\nSynchronized samples:",
         len(frames)
     )
+
+    if len(frames) == 0:
+        raise ValueError(
+            "No synchronized rPPG and motion "
+            "frames were found."
+        )
 
     print(
         "First synchronized frame:",
@@ -155,6 +182,38 @@ def main():
     )
 
     # ------------------------------------------
+    # Interpolation quality information
+    # ------------------------------------------
+
+    if "interpolated" in synchronized.columns:
+
+        interpolated_samples = int(
+            synchronized[
+                "interpolated"
+            ].sum()
+        )
+
+        interpolation_rate = (
+            interpolated_samples
+            / len(synchronized)
+            * 100.0
+        )
+
+        print(
+            "\nSynchronized rPPG quality:"
+        )
+
+        print(
+            "Interpolated synchronized samples:",
+            interpolated_samples
+        )
+
+        print(
+            f"Interpolation rate: "
+            f"{interpolation_rate:.2f}%"
+        )
+
+    # ------------------------------------------
     # Node availability
     # ------------------------------------------
 
@@ -173,7 +232,8 @@ def main():
         print(
             f"{index}: "
             f"{node:12s} "
-            f"rPPG={'YES' if has_physiology else 'NO ':3s} "
+            f"rPPG="
+            f"{'YES' if has_physiology else 'NO ':3s} "
             f"motion=YES"
         )
 
@@ -221,7 +281,63 @@ def main():
     # Validation
     # ------------------------------------------
 
-    expected_samples = 276
+    sample_count_correct = (
+        len(frames)
+        == expected_samples
+    )
+
+    synchronized_frames_correct = (
+        np.array_equal(
+            frames,
+            expected_frames,
+        )
+    )
+
+    physiology_shape_correct = (
+        physiology.shape
+        == (
+            expected_samples,
+            len(FACIAL_NODES),
+        )
+    )
+
+    motion_shape_correct = (
+        motion.shape
+        == (
+            expected_samples,
+            len(FACIAL_NODES),
+        )
+    )
+
+    physiology_finite = (
+        np.isfinite(
+            physiology[
+                :,
+                physiology_mask
+            ]
+        ).all()
+    )
+
+    motion_finite = (
+        np.isfinite(
+            motion
+        ).all()
+    )
+
+    missing_physiology_nan = (
+        np.isnan(
+            physiology[
+                :,
+                ~physiology_mask
+            ]
+        ).all()
+    )
+
+    time_monotonic = (
+        np.all(
+            np.diff(time) > 0
+        )
+    )
 
     print(
         "\nValidation checks:"
@@ -234,34 +350,60 @@ def main():
 
     print(
         "Sample count correct:",
-        len(frames) == expected_samples
+        sample_count_correct
+    )
+
+    print(
+        "Synchronized frame IDs correct:",
+        synchronized_frames_correct
+    )
+
+    print(
+        "Physiology matrix shape correct:",
+        physiology_shape_correct
+    )
+
+    print(
+        "Motion matrix shape correct:",
+        motion_shape_correct
     )
 
     print(
         "Physiology finite where available:",
-        np.isfinite(
-            physiology[
-                :,
-                physiology_mask
-            ]
-        ).all()
+        physiology_finite
     )
 
     print(
         "Motion values finite:",
-        np.isfinite(
-            motion
-        ).all()
+        motion_finite
     )
 
     print(
         "Missing physiology stored as NaN:",
-        np.isnan(
-            physiology[
-                :,
-                ~physiology_mask
-            ]
-        ).all()
+        missing_physiology_nan
+    )
+
+    print(
+        "Timestamps strictly increasing:",
+        time_monotonic
+    )
+
+    all_checks_passed = all(
+        [
+            sample_count_correct,
+            synchronized_frames_correct,
+            physiology_shape_correct,
+            motion_shape_correct,
+            physiology_finite,
+            motion_finite,
+            missing_physiology_nan,
+            time_monotonic,
+        ]
+    )
+
+    print(
+        "\nAll validation checks passed:",
+        all_checks_passed
     )
 
     print(

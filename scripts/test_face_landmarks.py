@@ -17,9 +17,13 @@ from src.preprocessing.face_landmarker import (
 VIDEO_PATH = (
     PROJECT_ROOT
     / "data"
-    / "raw"
-    / "real"
-    / "sample_real.mp4"
+    / "datasets"
+    / "FaceForensics++"
+    / "original_sequences"
+    / "youtube"
+    / "c23"
+    / "videos"
+    / "033.mp4"
 )
 
 MODEL_PATH = (

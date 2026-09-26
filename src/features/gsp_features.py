@@ -367,24 +367,43 @@ def spectral_energy_features(
 
 def temporal_graph_variation(
     signal_matrix,
+    frame_ids=None,
 ):
     """
-    Measure how much the complete graph signal
-    changes between consecutive time steps.
+    Measure temporal change in a graph signal.
+
+    Variation is calculated only between samples
+    that correspond to consecutive original video
+    frames.
+
+    If frame_ids are supplied and two neighboring
+    rows are separated by a frame gap, no temporal
+    difference is calculated across that gap.
 
     Parameters
     ----------
     signal_matrix : ndarray
-        Shape (T, N), where T is time and
-        N is the number of graph nodes.
+        Shape (T, N), where T is time and N is the
+        number of graph nodes.
+
+    frame_ids : array-like or None
+        Original video frame IDs corresponding to
+        the rows of signal_matrix.
+
+        When provided, temporal variation is valid
+        only when:
+
+            current_frame - previous_frame == 1
 
     Returns
     -------
     ndarray
-        Temporal variation with shape (T,).
+        Temporal variation values for valid
+        consecutive-frame transitions only.
 
-        The first sample is set to 0 because
-        no previous graph state exists.
+        The first sample and samples immediately
+        following temporal gaps are excluded rather
+        than being assigned artificial zero values.
     """
 
     signal_matrix = np.asarray(
@@ -397,25 +416,69 @@ def temporal_graph_variation(
             "signal_matrix must have shape (T, N)."
         )
 
-    if len(signal_matrix) == 0:
+    num_samples = len(
+        signal_matrix
+    )
+
+    if num_samples < 2:
         return np.array(
             [],
             dtype=np.float64,
         )
 
-    variation = np.zeros(
-        len(signal_matrix),
-        dtype=np.float64,
-    )
+    # ==========================================
+    # Calculate neighboring differences
+    # ==========================================
 
     differences = np.diff(
         signal_matrix,
         axis=0,
     )
 
-    variation[1:] = np.linalg.norm(
+    variation = np.linalg.norm(
         differences,
         axis=1,
     )
 
-    return variation
+    # ==========================================
+    # No frame information supplied
+    # ==========================================
+
+    if frame_ids is None:
+        return variation
+
+    # ==========================================
+    # Validate frame IDs
+    # ==========================================
+
+    frame_ids = np.asarray(
+        frame_ids,
+        dtype=np.int64,
+    )
+
+    if frame_ids.ndim != 1:
+        raise ValueError(
+            "frame_ids must be one-dimensional."
+        )
+
+    if len(frame_ids) != num_samples:
+        raise ValueError(
+            "frame_ids length must match the "
+            "number of signal samples."
+        )
+
+    # ==========================================
+    # Keep only true consecutive transitions
+    # ==========================================
+
+    frame_differences = np.diff(
+        frame_ids
+    )
+
+    consecutive_mask = (
+        frame_differences == 1
+    )
+
+    return variation[
+        consecutive_mask
+    ]

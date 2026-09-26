@@ -3,8 +3,8 @@ from pathlib import Path
 import cv2
 import pandas as pd
 
-from src.preprocessing.face_landmarker import (
-    FaceLandmarkDetector,
+from src.preprocessing.robust_face_landmarker import (
+    RobustFaceLandmarkDetector,
 )
 
 from src.motion.landmark_motion import (
@@ -40,9 +40,9 @@ def extract_video_motion(
         cv2.CAP_PROP_FPS
     )
 
-    detector = FaceLandmarkDetector(
-        model_path
-    )
+    detector = RobustFaceLandmarkDetector(
+    model_path
+   )
 
     records = []
 
