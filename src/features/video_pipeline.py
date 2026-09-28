@@ -23,12 +23,17 @@ from src.features.video_features import (
     extract_video_features,
 )
 
+from src.features.graph_profile_features import (
+    extract_graph_profile_features,
+    EXPECTED_GRAPH_PROFILE_FEATURES,
+)
 
 def process_video_to_features(
     video_path,
     model_path,
     max_frames=None,
     max_gap_frames=6,
+    include_graph_profile=False,
 ):
     """
     Complete DeepGraph-Phys feature extraction pipeline.
@@ -371,7 +376,41 @@ def process_video_to_features(
     features = extract_video_features(
         dynamic_data
     )
+    graph_profile_features = None
 
+    if include_graph_profile:
+
+        graph_profile_features = (
+            extract_graph_profile_features(
+                dynamic_data
+            )
+        )
+
+        if len(
+            graph_profile_features
+        ) != EXPECTED_GRAPH_PROFILE_FEATURES:
+            raise ValueError(
+                "Unexpected graph-profile feature "
+                f"count: "
+                f"{len(graph_profile_features)}. "
+                "Expected 45."
+            )
+
+        graph_values = np.asarray(
+            list(
+                graph_profile_features.values()
+            ),
+            dtype=np.float64,
+        )
+
+        if not np.isfinite(
+            graph_values
+        ).all():
+            raise ValueError(
+                "Graph-profile features contain "
+                "NaN or infinite values."
+            )
+            
     feature_count = len(
         features
     )
@@ -485,6 +524,13 @@ def process_video_to_features(
         "feature_count":
             feature_count,
     }
+
+    if include_graph_profile:
+     return (
+            features,
+            graph_profile_features,
+            metadata,
+        )
 
     return (
         features,
