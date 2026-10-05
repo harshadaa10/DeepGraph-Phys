@@ -375,3 +375,120 @@ Phase 11F â€” Expanded experiment protocol: FROZEN
 Next stage:
 
 **Expanded validation/model evaluation**
+---
+
+# Phase 11I Exploratory Model-Selection Amendment
+
+## Purpose
+
+Phase 11I evaluated whether the graph-profile features provide useful and complementary information beyond the 60-dimensional baseline feature representation.
+
+This analysis was performed using the expanded FaceForensics++ training partition only.
+
+The validation and reserved test partitions were not used.
+
+## Exploratory Comparisons
+
+Four feature configurations were compared using training-group Leave-One-Group-Out cross-validation:
+
+1. `baseline_60`
+2. `graph_profile_45`
+3. `reduced_graph`
+4. `baseline_60 + reduced_graph`
+
+The reduced graph representation was selected independently inside each CV fold using a deterministic correlation filter with an absolute correlation threshold of 0.90.
+
+This ensured that graph-feature selection did not use the held-out group.
+
+All configurations used the same genuine-only One-Class SVM protocol:
+
+- StandardScaler fitted only on genuine training videos
+- One-Class SVM with RBF kernel
+- `gamma="scale"`
+- `nu=0.10`
+- anomaly score = negative decision function
+- held-out group evaluation using ROC-AUC and PR-AUC
+
+## Phase 11I Results
+
+| Feature configuration | Mean ROC-AUC | ROC-AUC SD | Mean PR-AUC | PR-AUC SD |
+|---|---:|---:|---:|---:|
+| `baseline_60` | 0.5809 | 0.2874 | 0.7157 | 0.2002 |
+| `graph_profile_45` | 0.4412 | 0.3154 | 0.6275 | 0.1855 |
+| `reduced_graph` | 0.5147 | 0.2775 | 0.6569 | 0.1828 |
+| `baseline_60 + reduced_graph` | 0.5662 | 0.2848 | 0.6961 | 0.1937 |
+
+## Interpretation
+
+The original 45-dimensional graph profile showed substantial redundancy.
+
+Correlation-based reduction decreased the graph representation to approximately 13–17 features per fold and improved graph-only performance relative to the unreduced graph profile.
+
+However, the reduced graph representation remained below the baseline model.
+
+Adding the reduced graph features to the baseline also did not improve performance. The combined reduced representation achieved a mean ROC-AUC of 0.5662 compared with 0.5809 for the baseline.
+
+Therefore, the Phase 11I training-group analysis provides no evidence that the current graph-profile representation adds complementary predictive value to the baseline feature set under the frozen genuine-only anomaly-detection protocol.
+
+## Model Selection Decision
+
+For the next evaluation stage, `baseline_60` is selected as the primary candidate.
+
+The graph-profile experiments are retained as an exploratory research finding rather than being discarded.
+
+This decision is based on training-group cross-validation only.
+
+The validation partition remains reserved for the next model-selection checkpoint.
+
+The test partition remains completely locked and has not been used during Phase 11I.
+
+## Research Interpretation
+
+The graph-based representation should not be presented as empirically superior in the current 100-video pilot experiment.
+
+Instead, the results demonstrate that:
+
+- graph features can contain class-direction differences;
+- the original graph profile contains substantial redundancy;
+- redundancy reduction improves the graph-only representation somewhat;
+- the current graph representation does not outperform the baseline;
+- adding the current graph representation does not improve the baseline under the present experimental conditions.
+
+This is treated as a negative/diagnostic finding and is retained for transparent reporting.
+
+## Scope Limitation
+
+These conclusions are specific to the current pilot experiment:
+
+- FaceForensics++ dataset
+- 100 videos
+- 50 real and 50 fake
+- Deepfakes manipulation
+- c23 compression
+- 25 identity groups
+- 17 training groups used for exploratory CV
+
+They do not establish that graph-based physiological or motion features are universally ineffective for deepfake detection.
+
+Future work may investigate larger datasets, additional manipulation types, alternative graph constructions, or stronger graph representations.
+
+## Reproducibility Artifacts
+
+Phase 11I analysis scripts:
+
+- `scripts/diagnose_phase11i_graph_features.py`
+- `scripts/analyze_phase11i_group_stability.py`
+- `scripts/analyze_phase11i_redundancy.py`
+- `scripts/evaluate_phase11i_reduced_graph_cv.py`
+- `scripts/evaluate_phase11i_combined_reduced_cv.py`
+
+Earlier expanded validation and group-CV scripts:
+
+- `scripts/evaluate_phase11g_validation.py`
+- `scripts/evaluate_phase11h_group_cv.py`
+
+Phase 11I result artifacts are stored under:
+
+`outputs/experiments/`
+
+The next step is validation evaluation of the selected `baseline_60` candidate. The reserved test set remains untouched until the validation/model-selection decision is finalized.
