@@ -492,3 +492,64 @@ Phase 11I result artifacts are stored under:
 `outputs/experiments/`
 
 The next step is validation evaluation of the selected `baseline_60` candidate. The reserved test set remains untouched until the validation/model-selection decision is finalized.
+
+---
+
+# Phase 12 Validation Model-Selection Decision
+
+## Validation Evaluation
+
+The expanded validation evaluation was performed using the frozen Phase 11 protocol. The reserved test set remained completely untouched.
+
+Validation set:
+- 16 videos
+- 8 real
+- 8 fake
+- 4 identity groups
+
+The three frozen feature configurations produced:
+
+| Feature set | ROC-AUC | PR-AUC |
+|---|---:|---:|
+| baseline_60 | 0.7734 | 0.6753 |
+| graph_profile_45 | 0.6250 | 0.6104 |
+| combined_105 | 0.7734 | 0.6753 |
+
+## Model-Selection Decision
+
+The `baseline_60` feature set is selected as the final candidate model.
+
+The graph-only representation did not improve validation performance over the baseline. The combined representation produced the same validation performance as the baseline.
+
+Therefore, no graph-feature-based model will replace the baseline candidate for the final held-out test.
+
+This decision is based only on the training and validation data. The reserved test set has not been used for model selection.
+
+## Final Test Protocol
+
+The final reserved test evaluation will use:
+
+- Feature set: `baseline_60`
+- Genuine-only training
+- `StandardScaler` fitted only on genuine training samples
+- One-Class SVM with RBF kernel
+- `gamma="scale"`
+- `nu=0.10`
+- Anomaly score = negative One-Class SVM decision function
+- Frozen train/validation/test split
+- ROC-AUC and PR-AUC as primary test metrics
+
+The test set will be evaluated once and will not be used for further feature selection, hyperparameter tuning, or model modification.
+
+## Limitations
+
+The validation set contains only 16 videos from 4 identity groups. Therefore, the validation result is preliminary and should not be interpreted as evidence of broad deepfake-detection generalization.
+
+The current experiment remains limited to the expanded 100-video FaceForensics++ Deepfakes c23 pilot dataset.
+
+## Status
+
+- Phase 12A validation evaluation: COMPLETE
+- Phase 12B model-selection decision: FROZEN
+- Phase 12C repository safety check: COMPLETE
+- Next: final reserved test evaluation
