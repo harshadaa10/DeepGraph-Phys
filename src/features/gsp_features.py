@@ -365,6 +365,7 @@ def spectral_energy_features(
         "spectral_centroid": spectral_centroid,
     }
 
+
 def temporal_graph_variation(
     signal_matrix,
     frame_ids=None,
@@ -372,38 +373,8 @@ def temporal_graph_variation(
     """
     Measure temporal change in a graph signal.
 
-    Variation is calculated only between samples
-    that correspond to consecutive original video
-    frames.
-
-    If frame_ids are supplied and two neighboring
-    rows are separated by a frame gap, no temporal
-    difference is calculated across that gap.
-
-    Parameters
-    ----------
-    signal_matrix : ndarray
-        Shape (T, N), where T is time and N is the
-        number of graph nodes.
-
-    frame_ids : array-like or None
-        Original video frame IDs corresponding to
-        the rows of signal_matrix.
-
-        When provided, temporal variation is valid
-        only when:
-
-            current_frame - previous_frame == 1
-
-    Returns
-    -------
-    ndarray
-        Temporal variation values for valid
-        consecutive-frame transitions only.
-
-        The first sample and samples immediately
-        following temporal gaps are excluded rather
-        than being assigned artificial zero values.
+    Only transitions between consecutive original
+    video frames are included when frame IDs are supplied.
     """
 
     signal_matrix = np.asarray(
@@ -416,19 +387,64 @@ def temporal_graph_variation(
             "signal_matrix must have shape (T, N)."
         )
 
-    num_samples = len(
-        signal_matrix
-    )
+    num_samples = len(signal_matrix)
+
+    # Validate frame IDs before converting them to integers.
+    if frame_ids is not None:
+        raw_frame_ids = np.asarray(frame_ids)
+
+        if raw_frame_ids.ndim != 1:
+            raise ValueError(
+                "frame_ids must be one-dimensional."
+            )
+
+        if len(raw_frame_ids) != num_samples:
+            raise ValueError(
+                "frame_ids length must match the "
+                "number of signal samples."
+            )
+
+        try:
+            numeric_frame_ids = raw_frame_ids.astype(
+                np.float64
+            )
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                "frame_ids must contain finite integers."
+            ) from exc
+
+        if not np.isfinite(numeric_frame_ids).all():
+            raise ValueError(
+                "frame_ids must contain finite integers."
+            )
+
+        if not np.equal(
+            numeric_frame_ids,
+            np.floor(numeric_frame_ids),
+        ).all():
+            raise ValueError(
+                "frame_ids must contain integer values."
+            )
+
+        int64_limits = np.iinfo(np.int64)
+
+        if (
+            (numeric_frame_ids < int64_limits.min).any()
+            or (numeric_frame_ids >= 2**63).any()
+        ):
+            raise ValueError(
+                "frame_ids are outside the supported integer range."
+            )
+
+        frame_ids = numeric_frame_ids.astype(np.int64)
+
+        if (np.diff(frame_ids) <= 0).any():
+            raise ValueError(
+                "frame_ids must be strictly increasing."
+            )
 
     if num_samples < 2:
-        return np.array(
-            [],
-            dtype=np.float64,
-        )
-
-    # ==========================================
-    # Calculate neighboring differences
-    # ==========================================
+        return np.array([], dtype=np.float64)
 
     differences = np.diff(
         signal_matrix,
@@ -440,45 +456,11 @@ def temporal_graph_variation(
         axis=1,
     )
 
-    # ==========================================
-    # No frame information supplied
-    # ==========================================
-
     if frame_ids is None:
         return variation
 
-    # ==========================================
-    # Validate frame IDs
-    # ==========================================
-
-    frame_ids = np.asarray(
-        frame_ids,
-        dtype=np.int64,
-    )
-
-    if frame_ids.ndim != 1:
-        raise ValueError(
-            "frame_ids must be one-dimensional."
-        )
-
-    if len(frame_ids) != num_samples:
-        raise ValueError(
-            "frame_ids length must match the "
-            "number of signal samples."
-        )
-
-    # ==========================================
-    # Keep only true consecutive transitions
-    # ==========================================
-
-    frame_differences = np.diff(
-        frame_ids
-    )
-
     consecutive_mask = (
-        frame_differences == 1
+        np.diff(frame_ids) == 1
     )
 
-    return variation[
-        consecutive_mask
-    ]
+    return variation[consecutive_mask]
