@@ -14,34 +14,71 @@ PHYSIOLOGY_REGIONS = [
 ]
 
 
+
 def synchronize_signals(
     rppg_dataframe,
     motion_dataframe,
 ):
     """
-    Synchronize rPPG and motion data using
-    their frame numbers.
+    Synchronize rPPG and motion data using frame numbers.
+    Preserve rPPG segment and interpolation metadata.
     """
+
+    required_rppg = {
+        "frame",
+        "time_seconds",
+        "interpolated",
+    }
+
+    required_motion = {
+        "frame",
+        "time_seconds",
+    }
+
+    missing_rppg = (
+        required_rppg - set(rppg_dataframe.columns)
+    )
+    missing_motion = (
+        required_motion - set(motion_dataframe.columns)
+    )
+
+    if missing_rppg:
+        raise ValueError(
+            f"Missing rPPG columns: {sorted(missing_rppg)}"
+        )
+
+    if missing_motion:
+        raise ValueError(
+            f"Missing motion columns: {sorted(missing_motion)}"
+        )
+
+    # Compatibility for older diagnostic CSVs only.
+    # Original segment boundaries cannot be recovered.
+    if "segment_id" not in rppg_dataframe.columns:
+        rppg_dataframe = rppg_dataframe.copy()
+        rppg_dataframe["segment_id"] = 0
+
 
     synchronized = pd.merge(
         rppg_dataframe,
         motion_dataframe,
         on="frame",
         how="inner",
-        suffixes=(
-            "_rppg_time",
-            "_motion_time",
-        ),
+        suffixes=("_rppg_time", "_motion_time"),
+        validate="one_to_one",
     )
+
+    synchronized = synchronized.sort_values(
+        "frame"
+    ).reset_index(drop=True)
 
     # Use the rPPG timestamp as the common timestamp.
     synchronized["time_seconds"] = (
-        synchronized[
-            "time_seconds_rppg_time"
-        ]
+        synchronized["time_seconds_rppg_time"]
     )
 
     return synchronized
+
 
 
 def build_graph_signal_matrix(
@@ -64,13 +101,30 @@ def build_graph_signal_matrix(
         True only for nodes where rPPG exists.
     """
 
-    num_samples = len(
-        synchronized_dataframe
+    # Validate all required signal columns first.
+    required_columns = {
+        f"{region}_motion"
+        for region in FACIAL_NODES
+    }
+
+    required_columns.update(
+        f"{region}_rppg"
+        for region in PHYSIOLOGY_REGIONS
     )
 
-    num_nodes = len(
-        FACIAL_NODES
+    missing_columns = (
+        required_columns
+        - set(synchronized_dataframe.columns)
     )
+
+    if missing_columns:
+        raise ValueError(
+            "Missing required graph signal columns: "
+            f"{sorted(missing_columns)}"
+        )
+
+    num_samples = len(synchronized_dataframe)
+    num_nodes = len(FACIAL_NODES)
 
     physiology_matrix = np.full(
         (num_samples, num_nodes),
@@ -88,56 +142,34 @@ def build_graph_signal_matrix(
         dtype=bool,
     )
 
-    for node_index, region in enumerate(
-        FACIAL_NODES
-    ):
+    for node_index, region in enumerate(FACIAL_NODES):
+        # Motion must exist for all seven nodes.
+        motion_column = f"{region}_motion"
 
-        # --------------------------------------
-        # Motion exists for all seven nodes
-        # --------------------------------------
-
-        motion_column = (
-            f"{region}_motion"
+        motion_matrix[:, node_index] = (
+            synchronized_dataframe[motion_column].to_numpy(
+                dtype=np.float64
+            )
         )
 
-        if (
-            motion_column
-            in synchronized_dataframe.columns
-        ):
-
-            motion_matrix[
-                :,
-                node_index
-            ] = synchronized_dataframe[
-                motion_column
-            ].values
-
-        # --------------------------------------
-        # rPPG exists only for skin ROIs
-        # --------------------------------------
-
+        # rPPG exists only for the three skin regions.
         if region in PHYSIOLOGY_REGIONS:
+            rppg_column = f"{region}_rppg"
 
-            rppg_column = (
-                f"{region}_rppg"
+            physiology_matrix[:, node_index] = (
+                synchronized_dataframe[rppg_column].to_numpy(
+                    dtype=np.float64
+                )
             )
 
-            physiology_matrix[
-                :,
-                node_index
-            ] = synchronized_dataframe[
-                rppg_column
-            ].values
-
-            physiology_mask[
-                node_index
-            ] = True
+            physiology_mask[node_index] = True
 
     return (
         physiology_matrix,
         motion_matrix,
         physiology_mask,
     )
+
 
 
 def create_dynamic_graph_data(
