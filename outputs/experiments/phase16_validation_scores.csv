@@ -1,0 +1,17 @@
+video,group_id,label,split,anomaly_score,predicted_label
+712.mp4,group_18,real,validation,0.4529533858362291,fake
+716.mp4,group_18,real,validation,-0.09436273348443969,real
+712_716.mp4,group_18,fake,validation,0.4529533858362291,fake
+716_712.mp4,group_18,fake,validation,0.029749379793056974,fake
+811.mp4,group_19,real,validation,-0.13827015283188648,real
+920.mp4,group_19,real,validation,0.11920172080767882,fake
+811_920.mp4,group_19,fake,validation,0.03798421838449173,fake
+920_811.mp4,group_19,fake,validation,0.17864251141215215,fake
+828.mp4,group_20,real,validation,-0.04160110183399701,fake
+830.mp4,group_20,real,validation,-0.08340050019954226,real
+828_830.mp4,group_20,fake,validation,-0.08089100843975228,fake
+830_828.mp4,group_20,fake,validation,0.06743359864531023,fake
+866.mp4,group_21,real,validation,-0.1596356326916385,real
+878.mp4,group_21,real,validation,-0.13905276452702975,real
+866_878.mp4,group_21,fake,validation,0.11388278949354969,fake
+878_866.mp4,group_21,fake,validation,0.033035926741513344,fake

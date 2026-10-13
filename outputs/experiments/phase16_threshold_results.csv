@@ -1,0 +1,2 @@
+model,feature_count,genuine_training_videos,validation_videos,threshold,threshold_rule,validation_f1,validation_precision,validation_recall,validation_accuracy,true_real,false_fake,missed_fake,detected_fake,reserved_test_rows_used
+baseline_60,60,34,16,-0.08214575431964727,"maximize validation F1; ties prefer recall, then precision",0.8421052631578947,0.7272727272727273,1.0,0.8125,5,3,0,8,0
