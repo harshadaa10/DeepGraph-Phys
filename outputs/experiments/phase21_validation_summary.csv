@@ -1,0 +1,4 @@
+model,train_videos,validation_videos,roc_auc,pr_auc,accuracy,precision,recall,f1,true_real,false_fake,missed_fake,detected_fake
+logistic_regression,68,16,0.78125,0.8508928571428572,0.75,0.75,0.75,0.75,6,2,2,6
+rbf_svm,68,16,0.8203125,0.8764880952380952,0.5625,0.5454545454545454,0.75,0.631578947368421,3,5,2,6
+random_forest,68,16,0.890625,0.9126984126984128,0.75,0.7,0.875,0.7777777777777778,5,3,1,7
